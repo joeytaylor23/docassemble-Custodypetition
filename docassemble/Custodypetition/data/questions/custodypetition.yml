@@ -1,0 +1,595 @@
+---
+include:
+  - docassemble.AssemblyLine:assembly_line.yml
+---
+metadata:
+  title: |
+    Petition for Custody
+  short title: |
+    Petition for Custody
+  tags:
+    - ES-00-00-00-00
+    - FA-00-00-00-00
+  authors:
+---
+mandatory: True
+comment: |
+  Global interview metadata
+variable name: interview_metadata["custodypetition"]
+data:
+  al_weaver_version: "1.7.0"
+  generated on: "2022-11-25"
+  title: >-
+    Petition for Custody
+  short title: >-
+    Petition for Custody
+  description: |-
+    Custodypetition
+  original_form: >-
+    
+  allowed courts: 
+    - "District Court"
+  categories:
+    - "ES-00-00-00-00"
+    - "FA-00-00-00-00"
+  typical role: "plaintiff"
+  generate download screen: True
+---
+code: |
+  interview_metadata['main_interview_key'] =  'custodypetition'
+---
+code: |
+  # This controls the default country and list of states in address field questions
+  AL_DEFAULT_COUNTRY = "US"
+---
+code: |
+  # This controls the default state in address field questions
+  AL_DEFAULT_STATE = "LA"
+---
+code: |
+  github_repo_name =  'docassemble-Custodypetition'
+---
+code: |
+  interview_short_title = "Ask the court for a change in custody"
+---
+code: |
+  al_form_type = "starts_case" 
+---
+objects:
+  #- primary_caregiver: ALPeopleList.using(ask_number=True,target_number=1)
+  - other_caretaker: ALPeopleList.using(ask_number=True,target_number=1)
+  - children: ALPeopleList.using(ask_number=True, target_number=number_of_children, complete_attribute="complete")
+  - users: ALPeopleList.using(ask_number=True,target_number=1)
+  - court_list: ALCourtLoader.using(file_name='JDCs_by_parish.xlsx')
+---
+sections:
+  - review_custodypetition: Review your answers
+---
+#################### Interview order #####################
+comment: |
+  Controls order and branching logic for questions specific to this form
+id: interview_order_custodypetition
+code: |
+  # Set the allowed courts for this interview
+  allowed_courts = interview_metadata["custodypetition"]["allowed courts"]
+  nav.set_section("review_custodypetition")
+  user_role = "plaintiff"
+  petitioners.gather()
+  petitioners[0].address.address
+  petitioner_email
+  venue_options
+  defendants.gather()
+  defendants[0].address.address
+  number_of_children
+  if number_of_children > 0:
+    number_of_children = children.target_number
+  else:
+    stop_screen
+  children.gather()
+  primary_caregiver
+  petitioner_further_prays
+  set_progress(25)
+  trial_court
+  trial_court_index
+  set_progress(50)
+  custodypetition_preview_question
+  petitioners[0].signature
+  interview_order_custodypetition = True
+---
+###################### Main order ######################
+comment: |
+  This block includes the logic for standalone interviews.
+  Delete mandatory: True to include in another interview
+mandatory: True
+code: |
+  al_intro_screen
+  custodypetition_intro
+  interview_order_custodypetition
+  signature_date
+  # Store anonymous data for analytics / statistics
+  store_variables_snapshot(
+      persistent=True,
+      data={
+          "zip": showifdef("users[0].address.zip"),
+          "reached_interview_end": True,
+      },
+  )
+  custodypetition_download
+---
+code: |
+  children[i].name.first
+  children[i].birthdate
+  children[i].resides_with
+  children[i].why_six_months
+  children[i].complete = True
+---
+sets:
+  - other_parties[i].name.first
+  - other_parties[i].name.last
+  - other_parties[i].name.middle
+  - other_parties[i].name.suffix
+id: CustPet names of opposing parties
+question: |
+  % if user_started_case:
+  Name of the **defendant** or respondent in this
+  matter
+  % else:
+  Name of ${ ordinal(i) } **plaintiff** or petitioner in this matter
+  % endif
+fields:
+  - code: |
+      other_parties[i].name_fields(person_or_business='person')
+---
+id: is there an opposing party?
+question: |
+  % if al_form_type in ['starts_case','existing_case','appeal'] and user_started_case:
+  Is there a **defendant** or respondent in this case? 
+  % elif al_form_type in ['starts_case','existing_case','appeal']:
+  Is there a **plaintiff** or petitioner in this case?
+  % else:
+  Is there someone on the other side of your dispute?
+  % endif
+subquestion: |
+  % if al_form_type in ['starts_case','existing_case','appeal'] and user_started_case:
+  Answer yes if there is a person or organization you are suing or taking to court.
+  % elif al_form_type in ['starts_case','existing_case','appeal']:
+  You should be able to find out from the paperwork that told you to 
+  go to court.
+
+  Answer yes if someone else has sued you or is bringing you to court.
+  % endif
+fields:
+  - no label: other_parties.there_are_any
+    datatype: yesnoradio
+---
+comment: |
+  This question is used to introduce your interview. Please customize
+id: Petition_for_Custody
+continue button field: custodypetition_intro
+question: |
+  Hello.
+---
+id: petitioner contact information
+question: |
+  Contact Info
+fields:
+  - "What is your e-mail address?": petitioner_email
+    datatype: email
+    hint: |
+      example@example.com
+  - "What is your phone number?": petitioner_phone
+    datatype: text
+    hint: |
+      (###)###-####
+---
+id: Child Support
+question: |
+  Petitioner Requests (Child Support)
+fields:
+  - "Is child support currently being paid or pending against the defendant?": child_support_paid_or_pending
+    datatype: yesnoradio
+  - "What is the docket number?": child_support_docket_number
+    datatype: number
+    show if: 
+      variable: child_support_paid_or_pending
+      is: True
+  - "From the parish of...": parish_of_child_support_case
+    show if: 
+      variable: child_support_paid_or_pending
+      is: True
+  - "Do you request for the defendant to pay child support since they are capable of earning sufficient funds?": requests_child_support
+    datatype: yesnoradio
+    show if:
+      variable: child_support_paid_or_pending
+      is: False
+  - "Would you like to reserve the right to request child support in the future?": future_child_support
+    datatype: yesnoradio
+    show if:
+      variable: requests_child_support
+      is: True
+---
+id: Venue Options
+question: |
+fields:
+  - "Why would {$ domicile} Parish court be an appropriate venue?": venue_options
+    datatype: checkboxes
+    choices:
+      - This court is in the parish where a party is domiciled.
+      - This court is in the parish of the last matrimonial domicile
+  - "Will you be able to pay the costs of this suit?": ability_to_pay_fees
+    datatype: yesnoradio
+  - "Would you like to file and prosecute [in forma pauperis], where you will be granted all general and equitable relief?": forma_pauperis
+    datatype: yesnoradio
+---
+id: Further Prays
+question: |
+ What additional requests would you like to give?
+fields:
+  - no label: petitioner_further_prays
+    input type: radio
+    choices:
+      - Petitioner be cast with the costs of these proceedings: petitioner_cast_with_costs
+      - Defendant be cast with the costs of these proceedings: defendant_cast_with_costs
+      - The parties share the costs of these proceedings in equal amounts: share_costs
+      - Each party bears their own court costs and attorney’s fees: bears_own_costs
+---
+id: Petitioner Defendant Relationship
+question: |
+  Petitioner-Defendant Relationship
+fields:
+  - "How many children are between the defendant and yourself?": number_of_children
+    datatype: integer
+  - "Were you and the defendant in an intimate relationship?": intimate_relationship
+    datatype: yesnoradio
+  - "Were you and the defendant married and physically separated?": physically_separated
+    datatype: yesnoradio
+  - "What is the date of being officially physically separated?": date_of_physical_separation
+    datatype: date
+    show if: 
+      variable: physically_separated
+      is: True
+  - "Was a divorce filed for you and the defendant?": divorce_filed
+    datatype: yesnoradio
+  - "When was the divorce filed?": date_when_divorce_filed
+    datatype: date
+    show if:
+      variable: divorce_filed
+      is: True
+  - "Were you and the defendant divorced by a signed judgment?": divorce_signed
+    datatype: yesnoradio
+  - "When was the judgment signed?": date_of_divorce_signed
+    datatype: date
+    show if:
+      variable: divorce_signed
+      is: True
+---
+id: who the children reside 
+question: |
+  Who does ${ children[i].name.full() } reside with?
+  
+fields:
+  - Somebody already mentioned: children[i].resides_with
+    datatype: radio
+    choices: 
+      - ${ defendants[0].name.full() }
+      - ${ petitioners[0].name.full() }
+      - Other
+  - First Name: other_caretaker[i].name.first
+    show if:
+      variable: children[i].resides_with
+      is: Other
+  - Middle Name: other_caretaker[i].name.middle
+    required: False
+    show if:
+      variable: children[i].resides_with
+      is: Other
+  - Last Name: other_caretaker[i].name.last
+    show if:
+      variable: children[i].resides_with
+      is: Other
+  - Suffix: other_caretaker[i].name.suffix
+    required: False
+    code: name_suffix()
+    show if:
+      variable: children[i].resides_with
+      is: Other
+  - "Has ${ children[i].name.first } resided with them for the past six months?": six_months_residence
+    datatype: yesnoradio
+  - "Why?": children[i].why_six_months
+    required: False
+    show if:
+      variable: six_months_residence
+      is: True
+---
+code: |
+  if children[i].resides_with == "Other":
+    children[i].resides_with == other_caretaker[i].name.full
+---
+id: Petitioner Requests
+question: |
+  Petitioner's Request
+fields:
+  - Somebody already mentioned: primary_caregiver
+    datatype: radio
+    choices: 
+      - ${ defendants[0].name.full() }
+      - ${ petitioners[0].name.full() }
+  - "What are your reasons for this person to have parent/sole custody?": reason_for_primary_caregiver
+    input type: area
+    hint: |
+      I request this person to have custody because...
+  
+  - "What type of custody do you want to have?": sole_or_joint
+    datatype: radio
+    choices:
+      - Sole
+      - Joint
+---
+mandatory: True
+code: |
+  domicile = petitioners[0].address.county
+  defendant_domicile = defendants[0].address.county
+  defendant_state = defendants[0].address.state
+---
+id: Filing Option
+question: |
+  In what parish would you like to file your petition?
+fields:
+  - no label: trial_court_index
+    code: |
+      court_list.filter_courts(None)
+---
+code: |
+  trial_court = court_list.as_court('trial_court', trial_court_index[0])
+---
+progress: 100
+question: |
+  Sorry, you cannot proceed with this interview.
+subquestion: |
+  To proceed in getting your petition filed, seek legal assistance.
+buttons:
+  - Exit: exit
+  - Restart: restart
+event: stop_screen
+---
+id: preview custodypetition
+question: |
+  Preview your form before you sign it
+subquestion: |
+  Here is a preview of the form you will sign on the next page.   
+  
+  ${ al_court_bundle.as_pdf(key='preview') }
+
+  Click the image to open it in a new tab. Click the "Edit answers" button
+  to edit your answers.
+
+  ${ action_button_html(url_action('review_custodypetition'), label='Edit answers', color='info') }
+  
+  Remember to come back to this window to continue and sign your form.
+continue button field: custodypetition_preview_question    
+---
+code: |
+  signature_fields = []
+---
+code: |
+  judicial_district = DAEmpty()
+---
+code: |
+ name = DAEmpty()
+---
+code: |
+  # This is a placeholder for the addresses that will be searched
+  # for matching address to court. Edit if court venue is based on 
+  # a different address than the user's
+  addresses_to_search = [user.address for user in users]
+---
+id: custodypetition review screen
+event: review_custodypetition
+question: |
+  Review your answers
+review:
+  - Edit: petitioner_and_defendant_relationship
+    button: |
+      **Petitioner and defendant relationship**:
+      ${ petitioner_and_defendant_relationship }
+  - Edit: number_of_children
+    button: |
+      **Number of children**:
+      ${ number_of_children }
+  - Edit: primary_caregiver.revisit
+    button: |
+      **Primary caregiver**
+
+      % for item in primary_caregiver:
+        * ${ item }
+      % endfor
+  - Edit: judicial_district
+    button: |
+      **Judicial district**:
+      ${ judicial_district }
+  - Edit: name
+    button: |
+      **Filing parish**:
+      ${ name }
+  - Edit: date_of_divorce_signed
+    button: |
+      **Date of divorce signed**:
+      ${ date_of_divorce_signed }
+  - Edit: children.revisit
+    button: |
+      **Children**
+
+      % for item in children:
+        * ${ item }
+      % endfor
+  - Edit: who_the_child_resides_with.revisit
+    button: |
+      **Who the child resides with**
+
+      % for item in who_the_child_resides_with:
+        * ${ item }
+      % endfor
+  - Edit: divorce_filed
+    button: |
+      **Divorce filed**:
+      ${ divorce_filed }
+  - Edit: date_of_physical_separation
+    button: |
+      **Date of physical separation**:
+      ${ date_of_physical_separation }
+  - Edit: defendants.revisit
+    button: |
+      **Defendants**
+
+      % for item in defendants:
+        * ${ item }
+      % endfor
+  - Edit: petitioners.revisit
+    button: |
+      **Petitioners**
+
+      % for item in petitioners:
+        * ${ item }
+      % endfor
+---
+continue button field: primary_caregiver.revisit
+question: |
+  Edit primary_caregiver
+subquestion: |
+  ${ primary_caregiver.table }
+
+  ${ primary_caregiver.add_action() }
+---
+table: primary_caregiver.table
+rows: primary_caregiver
+columns:
+  - Name: |
+      row_item.name.full() if defined("row_item.name.first") else ""
+edit:
+  - name.first
+confirm: True
+
+---
+continue button field: children.revisit
+question: |
+  Edit children
+subquestion: |
+  ${ children.table }
+
+  ${ children.add_action() }
+---
+table: children.table
+rows: children
+columns:
+  - Birthdate: |
+      row_item.birthdate if defined("row_item.birthdate") else ""
+  - Name: |
+      row_item.name.full() if defined("row_item.name.first") else ""
+edit:
+  - birthdate
+  - name.first
+confirm: True
+
+---
+continue button field: who_the_child_resides_with.revisit
+question: |
+  Edit who_the_child_resides_with
+subquestion: |
+  ${ who_the_child_resides_with.table }
+
+  ${ who_the_child_resides_with.add_action() }
+---
+table: who_the_child_resides_with.table
+rows: who_the_child_resides_with
+columns:
+  - Name: |
+      row_item.name.full() if defined("row_item.name.first") else ""
+edit:
+  - name.first
+confirm: True
+
+---
+continue button field: defendants.revisit
+question: |
+  Edit defendants
+subquestion: |
+  ${ defendants.table }
+
+  ${ defendants.add_action() }
+---
+table: defendants.table
+rows: defendants
+columns:
+  - Name: |
+      row_item.name.full() if defined("row_item.name.first") else ""
+edit:
+  - name.first
+confirm: True
+
+---
+continue button field: petitioners.revisit
+question: |
+  Edit petitioners
+subquestion: |
+  ${ petitioners.table }
+
+  ${ petitioners.add_action() }
+---
+table: petitioners.table
+rows: petitioners
+columns:
+  - Name: |
+      row_item.name.full() if defined("row_item.name.first") else ""
+edit:
+  - name.first
+confirm: True
+
+---
+id: download custodypetition
+event: custodypetition_download
+question: |
+  All done
+subquestion: |
+  Thank you ${users}. Your form is ready to download and deliver.
+  
+  View, download and send your form below. Click the "Edit answers" button to fix any mistakes.
+
+  ${ action_button_html(url_action('review_custodypetition'), label='Edit answers', color='info') }
+  
+  
+  ${ al_user_bundle.download_list_html() }
+  
+
+  ${ al_user_bundle.send_button_html(show_editable_checkbox=True) }
+
+progress: 100
+---
+# ALDocument objects specify the metadata for each template
+objects:
+  - custodypetition_Post_interview_instructions: ALDocument.using(title="Instructions", filename="custodypetition_next_steps.docx", enabled=True, has_addendum=False, default_overflow_message=AL_DEFAULT_OVERFLOW_MESSAGE)
+  - custodypetition_attachment: ALDocument.using(title="Petition for Custody", filename="custodypetition", enabled=True, has_addendum=False, default_overflow_message=AL_DEFAULT_OVERFLOW_MESSAGE)
+---
+# Bundles group the ALDocuments into separate downloads, such as for court and for the user
+objects:
+  - al_user_bundle: ALDocumentBundle.using(elements=[custodypetition_Post_interview_instructions, custodypetition_attachment], filename="custodypetition", title="All forms to download for your records", enabled=True)
+  - al_court_bundle: ALDocumentBundle.using(elements=[custodypetition_attachment],  filename="custodypetition", title="All forms to deliver to court", enabled=True)
+---
+# Each attachment defines a key in an ALDocument. We use `i` as the placeholder here so the same template is 
+# used for "preview" and "final" keys, and logic in the template checks the value of 
+# `i` to show or hide the user's signature
+attachments:
+  - name: Post-interview-Instructions
+    filename: custodypetition_next_steps
+    docx template file: custodypetition_next_steps.docx
+    variable name: custodypetition_Post_interview_instructions[i]
+  - name: custodypetition
+    filename: custodypetition
+    variable name: custodypetition_attachment[i]
+    skip undefined: True
+    docx template file: custodypetition.docx
+    fields:
+      - "name": ${ trial_court.name }
+      - "judicial_district": ${ trial_court.judicial_district }
+      - "district_attorney": ${ trial_court.district_attorney }
+
+
