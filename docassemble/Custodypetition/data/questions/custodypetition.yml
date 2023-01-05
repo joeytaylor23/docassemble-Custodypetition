@@ -47,6 +47,9 @@ code: |
   AL_DEFAULT_STATE = "LA"
 ---
 code: |
+      defendants[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+---
+code: |
   github_repo_name =  'docassemble-Custodypetition'
 ---
 code: |
@@ -59,8 +62,9 @@ objects:
   #- primary_caregiver: ALPeopleList.using(ask_number=True,target_number=1)
   - other_caretaker: ALPeopleList.using(ask_number=True,target_number=1)
   - children: ALPeopleList.using(ask_number=True, target_number=number_of_children, complete_attribute="complete")
-  - users: ALPeopleList.using(ask_number=True,target_number=1)
+  - petitioners: ALPeopleList.using(ask_number=True,target_number=1)
   - court_list: ALCourtLoader.using(file_name='JDCs_by_parish.xlsx')
+  - defendants: ALPeopleList.using(ask_number=True,target_number=1)
 ---
 sections:
   - review_custodypetition: Review your answers
@@ -87,6 +91,7 @@ code: |
     stop_screen
   children.gather()
   primary_caregiver
+  child_support_paid_or_pending
   petitioner_further_prays
   set_progress(25)
   trial_court
@@ -120,25 +125,90 @@ code: |
   children[i].name.first
   children[i].birthdate
   children[i].resides_with
+  children[i].six_months_residence
   children[i].why_six_months
   children[i].complete = True
+#---
+#sets:
+#  - other_parties[i].name.first
+#  - other_parties[i].name.last
+#  - other_parties[i].name.middle
+#  - other_parties[i].name.suffix
+#id: CustPet names of opposing parties
+#question: |
+#  % if user_started_case:
+#  Name of the **defendant** or respondent in this
+#  matter
+#  % else:
+#  Name of ${ ordinal(i) } **plaintiff** or petitioner in this matter
+#  % endif
+#fields:
+#  - code: |
+#      other_parties[i].name_fields(person_or_business='person', target_number=1)
+#---
+#code: |
+#  other_parties.there_are_any = True
+#---
+#id: name of the defendant
+#sets:
+#  - defendants[0].name.first
+#  - defendants[0].name.last
+#  - defendants[0].name.middle
+#  - defendants[0].name.suffix
+#generic object: ALPeopleList
+#question: |
+#  % if hasattr(defendants, 'ask_number') and defendants.ask_number and defendants.target_number == 1:
+#  Name of the ${ noun_plural(defendants[0].object_name(),1) }
+#  % else:
+#  Name of your first ${ noun_plural(defendants[0].object_name(),1) }
+#  % endif
+#fields:
+#  - code: |
+#      defendants[0].name_fields()
 ---
 sets:
-  - other_parties[i].name.first
-  - other_parties[i].name.last
-  - other_parties[i].name.middle
-  - other_parties[i].name.suffix
-id: CustPet names of opposing parties
+  - defendants[0].address.address
+  - defendants[0].address.city
+  - defendants[0].address.county
+  - defendants[0].address.zip
+  - defendants[0].address.unit
+  - defendants[0].address.state
+  - defendants[0].address.country
+id: persons address
+generic object: ALIndividual
 question: |
-  % if user_started_case:
-  Name of the **defendant** or respondent in this
-  matter
-  % else:
-  Name of ${ ordinal(i) } **plaintiff** or petitioner in this matter
-  % endif
+  What is ${ defendants[0].possessive('address') }?
 fields:
   - code: |
-      other_parties[i].name_fields(person_or_business='person')
+      defendants[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+---
+id: your name
+sets:
+    - petitioners[0].name.first
+    - petitioners[0].name.last
+    - petitioners[0].name.middle
+    - petitioners[0].name.suffix
+question:  |
+  What is your name?
+fields:
+  - code: |
+      petitioners[0].name_fields()
+---
+sets:
+  - petitioners[0].address.address
+  - petitioners[0].address.city
+  - petitioners[0].address.county
+  - petitioners[0].address.zip
+  - petitioners[0].address.unit
+  - petitioners[0].address.state
+  - petitioners[0].address.country
+id: persons address
+generic object: ALIndividual
+question: |
+  What is your address?
+fields:
+  - code: |
+      petitioners[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
 ---
 id: is there an opposing party?
 question: |
@@ -158,16 +228,21 @@ subquestion: |
 
   Answer yes if someone else has sued you or is bringing you to court.
   % endif
-fields:
-  - no label: other_parties.there_are_any
-    datatype: yesnoradio
 ---
-comment: |
-  This question is used to introduce your interview. Please customize
 id: Petition_for_Custody
 continue button field: custodypetition_intro
 question: |
-  Hello.
+  Petition for Custody
+subquestion: |
+  This interview is for establishing child custody, visitation, and/or support only, and they can only be used by the legal parents of the child(ren). 
+  A child’s legal parents include the mother (who gave birth to the child) and the father who was either:
+  
+             (1) married to the mother at the time of birth
+             (2) has established his “paternity” in court using
+             (3) filed in Court an authentic “Acknowledgment of 
+                 Paternity” after the child was born.
+             
+  Please note: ${ italic('These forms do not cover establishing who is a legal parent, and you will be filing your custody case as a “self-represented litigant”.') } 
 ---
 id: petitioner contact information
 question: |
@@ -194,6 +269,72 @@ fields:
       variable: child_support_paid_or_pending
       is: True
   - "From the parish of...": parish_of_child_support_case
+    input type: dropdown
+    choices:
+      - 'Acadia'
+      - 'Allen'
+      - 'Ascension'
+      - 'Assumption'
+      - 'Avoyelles'
+      - 'Beauregard'
+      - 'Bienville'
+      - 'Bossier'
+      - 'Caddo'
+      - 'Calcasieu'
+      - 'Caldwell'
+      - 'Cameron'
+      - 'Catahoula'
+      - 'Claiborne'
+      - 'Concordia'
+      - 'De Soto'
+      - 'East Baton Rouge'
+      - 'East Carroll'
+      - 'East Feliciana'
+      - 'Evangeline'
+      - 'Franklin'
+      - 'Grant'
+      - 'Iberia'
+      - 'Iberville'
+      - 'Jackson'
+      - 'Jefferson'
+      - 'Jefferson Davis'
+      - 'La Salle'
+      - 'Lafayette'
+      - 'Lafourche'
+      - 'Lincoln'
+      - 'Livingston'
+      - 'Madison'
+      - 'Morehouse'
+      - 'Natchitoches'
+      - 'Orleans'
+      - 'Ouachita'
+      - 'Plaquemines'
+      - 'Pointe Coupee'
+      - 'Rapides'
+      - 'Red River'
+      - 'Richland'
+      - 'Sabine'
+      - 'St. Bernard'
+      - 'St. Charles'
+      - 'St. Helena'
+      - 'St. James'
+      - 'St. John The Baptist'
+      - 'St. Landry'
+      - 'St. Martin'
+      - 'St. Mary'
+      - 'St. Tammany'
+      - 'Tangipahoa'
+      - 'Tensas'
+      - 'Terrebonne'
+      - 'Union'
+      - 'Vermilion'
+      - 'Vernon'
+      - 'Washington'
+      - 'Webster'
+      - 'West Baton Rouge'
+      - 'West Carroll'
+      - 'West Feliciana'
+      - 'Winn'
     show if: 
       variable: child_support_paid_or_pending
       is: True
@@ -211,15 +352,19 @@ fields:
 id: Venue Options
 question: |
 fields:
-  - "Why would {$ domicile} Parish court be an appropriate venue?": venue_options
+  - "Why would ${ petitioners[0].address.county } court be an appropriate venue?": venue_options
     datatype: checkboxes
     choices:
       - This court is in the parish where a party is domiciled.
       - This court is in the parish of the last matrimonial domicile
   - "Will you be able to pay the costs of this suit?": ability_to_pay_fees
     datatype: yesnoradio
-  - "Would you like to file and prosecute [in forma pauperis], where you will be granted all general and equitable relief?": forma_pauperis
+  - "Would you like to file and prosecute ${ italic('in forma pauperis') }, where you will be granted all general and equitable relief?": forma_pauperis
     datatype: yesnoradio
+    help: Tell what forma pauperis is
+    show if: 
+      variable: ability_to_pay_fees
+      is: False
 ---
 id: Further Prays
 question: |
@@ -293,12 +438,12 @@ fields:
     show if:
       variable: children[i].resides_with
       is: Other
-  - "Has ${ children[i].name.first } resided with them for the past six months?": six_months_residence
+  - "Has ${ children[i].name.first } resided with them for the past six months?": children[i].six_months_residence
     datatype: yesnoradio
   - "Why?": children[i].why_six_months
     required: False
     show if:
-      variable: six_months_residence
+      variable: children[i].six_months_residence
       is: True
 ---
 code: |
@@ -324,12 +469,6 @@ fields:
     choices:
       - Sole
       - Joint
----
-mandatory: True
-code: |
-  domicile = petitioners[0].address.county
-  defendant_domicile = defendants[0].address.county
-  defendant_state = defendants[0].address.state
 ---
 id: Filing Option
 question: |
@@ -550,7 +689,7 @@ event: custodypetition_download
 question: |
   All done
 subquestion: |
-  Thank you ${users}. Your form is ready to download and deliver.
+  Thank you ${petitioners}. Your form is ready to download and deliver.
   
   View, download and send your form below. Click the "Edit answers" button to fix any mistakes.
 
