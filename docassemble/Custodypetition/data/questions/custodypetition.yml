@@ -59,12 +59,18 @@ code: |
   al_form_type = "starts_case" 
 ---
 objects:
-  #- primary_caregiver: ALPeopleList.using(ask_number=True,target_number=1)
+  - users: ALPeopleList.using(ask_number=True,target_number=1)
+  - users_work: ALPeopleList.using(ask_number=True,target_number=1)
+  - users_mailing: ALPeopleList.using(ask_number=True,target_number=1)
+  #- defendant_work: ALPeopleList.using(ask_number=True,target_number=1)
+  - defendant_mailing: ALPeopleList.using(ask_number=True,target_number=1)
+  - other_parties: ALPeopleList.using(ask_number=True,target_number=1)
   - other_caretaker: ALPeopleList.using(ask_number=True,target_number=1)
   - children: ALPeopleList.using(ask_number=True, target_number=number_of_children, complete_attribute="complete")
-  - petitioners: ALPeopleList.using(ask_number=True,target_number=1)
   - court_list: ALCourtLoader.using(file_name='JDCs_by_parish.xlsx')
-  - defendants: ALPeopleList.using(ask_number=True,target_number=1)
+---
+code: |
+  users.there_is_another = 0
 ---
 sections:
   - review_custodypetition: Review your answers
@@ -78,12 +84,12 @@ code: |
   allowed_courts = interview_metadata["custodypetition"]["allowed courts"]
   nav.set_section("review_custodypetition")
   user_role = "plaintiff"
-  petitioners.gather()
-  petitioners[0].address.address
+  users.gather()
+  users[0].address.address
   petitioner_email
+  other_parties.gather()
+  other_parties[0].address.address
   venue_options
-  defendants.gather()
-  defendants[0].address.address
   number_of_children
   if number_of_children > 0:
     number_of_children = children.target_number
@@ -96,6 +102,10 @@ code: |
   set_progress(25)
   trial_court
   trial_court_index
+  users_work[0].address.address
+  #defendant_work[0].address.address
+  users_mailing[0].address.address
+  defendant_mailing[0].address.address
   set_progress(50)
   custodypetition_preview_question
   petitioners[0].signature
@@ -128,106 +138,117 @@ code: |
   children[i].six_months_residence
   children[i].why_six_months
   children[i].complete = True
-#---
-#sets:
-#  - other_parties[i].name.first
-#  - other_parties[i].name.last
-#  - other_parties[i].name.middle
-#  - other_parties[i].name.suffix
-#id: CustPet names of opposing parties
-#question: |
-#  % if user_started_case:
-#  Name of the **defendant** or respondent in this
-#  matter
-#  % else:
-#  Name of ${ ordinal(i) } **plaintiff** or petitioner in this matter
-#  % endif
-#fields:
-#  - code: |
-#      other_parties[i].name_fields(person_or_business='person', target_number=1)
-#---
-#code: |
-#  other_parties.there_are_any = True
-#---
-#id: name of the defendant
-#sets:
-#  - defendants[0].name.first
-#  - defendants[0].name.last
-#  - defendants[0].name.middle
-#  - defendants[0].name.suffix
-#generic object: ALPeopleList
-#question: |
-#  % if hasattr(defendants, 'ask_number') and defendants.ask_number and defendants.target_number == 1:
-#  Name of the ${ noun_plural(defendants[0].object_name(),1) }
-#  % else:
-#  Name of your first ${ noun_plural(defendants[0].object_name(),1) }
-#  % endif
-#fields:
-#  - code: |
-#      defendants[0].name_fields()
 ---
 sets:
-  - defendants[0].address.address
-  - defendants[0].address.city
-  - defendants[0].address.county
-  - defendants[0].address.zip
-  - defendants[0].address.unit
-  - defendants[0].address.state
-  - defendants[0].address.country
+  - other_parties[i].name.first
+  - other_parties[i].name.last
+  - other_parties[i].name.middle
+  - other_parties[i].name.suffix
+id: names of opposing parties
+question: |
+  % if user_started_case:
+  Name of the **defendant** 
+  % else:
+  Name of ${ ordinal(i) } **plaintiff** or petitioner in this matter
+  % endif
+fields:
+  - code: |
+      other_parties[i].name_fields(person_or_business='person')
+---
+code: |
+  other_parties.there_are_any = True
+---
+sets:
+  - other_parties[0].address.address
+  - other_parties[0].address.city
+  - other_parties[0].address.county
+  - other_parties[0].address.zip
+  - other_parties[0].address.unit
+  - other_parties[0].address.state
+  - other_parties[0].address.country
 id: persons address
 generic object: ALIndividual
 question: |
-  What is ${ defendants[0].possessive('address') }?
+  What is ${ other_parties[0].possessive('address') }?
 fields:
   - code: |
-      defendants[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
----
-id: your name
-sets:
-    - petitioners[0].name.first
-    - petitioners[0].name.last
-    - petitioners[0].name.middle
-    - petitioners[0].name.suffix
-question:  |
-  What is your name?
-fields:
-  - code: |
-      petitioners[0].name_fields()
+      other_parties[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
 ---
 sets:
-  - petitioners[0].address.address
-  - petitioners[0].address.city
-  - petitioners[0].address.county
-  - petitioners[0].address.zip
-  - petitioners[0].address.unit
-  - petitioners[0].address.state
-  - petitioners[0].address.country
+  - users[0].address.address
+  - users[0].address.city
+  - users[0].address.county
+  - users[0].address.zip
+  - users[0].address.unit
+  - users[0].address.state
+  - users[0].address.country
 id: persons address
 generic object: ALIndividual
 question: |
   What is your address?
 fields:
   - code: |
-      petitioners[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+      users[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
 ---
-id: is there an opposing party?
+sets:
+  - users_work[0].address.address
+  - users_work[0].address.city
+  - users_work[0].address.county
+  - users_work[0].address.zip
+  - users_work[0].address.unit
+  - users_work[0].address.state
+  - users_work[0].address.country
+id: persons work address
 question: |
-  % if al_form_type in ['starts_case','existing_case','appeal'] and user_started_case:
-  Is there a **defendant** or respondent in this case? 
-  % elif al_form_type in ['starts_case','existing_case','appeal']:
-  Is there a **plaintiff** or petitioner in this case?
-  % else:
-  Is there someone on the other side of your dispute?
-  % endif
-subquestion: |
-  % if al_form_type in ['starts_case','existing_case','appeal'] and user_started_case:
-  Answer yes if there is a person or organization you are suing or taking to court.
-  % elif al_form_type in ['starts_case','existing_case','appeal']:
-  You should be able to find out from the paperwork that told you to 
-  go to court.
-
-  Answer yes if someone else has sued you or is bringing you to court.
-  % endif
+  What is your work address?
+fields:
+  - code: |
+      users_work[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+---
+id: Petitioner Mailing Address
+question: |
+  What is your mailing address?
+sets:
+  - users_mailing[0].address.address
+  - users_mailing[0].address.city
+  - users_mailing[0].address.county
+  - users_mailing[0].address.zip
+  - users_mailing[0].address.unit
+  - users_mailing[0].address.state
+  - users_mailing[0].address.country
+fields:
+  - code: |
+      users_mailing[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+---
+id: Defendant Mailing Address
+question: |
+  What is the defendant's mailing address?
+sets:
+  - defendant_mailing[0].address.address
+  - defendant_mailing[0].address.city
+  - defendant_mailing[0].address.county
+  - defendant_mailing[0].address.zip
+  - defendant_mailing[0].address.unit
+  - defendant_mailing[0].address.state
+  - defendant_mailing[0].address.country
+fields:
+  - code: |
+      defendant_mailing[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+---
+#id: Defendant Work Address
+#question: |
+#  What is the defendant's work address?
+#sets:
+#  - defendant_work[0].address.address
+#  - defendant_work[0].address.city
+#  - defendant_work[0].address.county
+#  - defendant_work[0].address.zip
+#  - defendant_work[0].address.unit
+#  - defendant_work[0].address.state
+#  - defendant_work[0].address.country
+#fields:
+#  - code: |
+#      defendant_work[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
 ---
 id: Petition_for_Custody
 continue button field: custodypetition_intro
@@ -264,7 +285,7 @@ fields:
   - "Is child support currently being paid or pending against the defendant?": child_support_paid_or_pending
     datatype: yesnoradio
   - "What is the docket number?": child_support_docket_number
-    datatype: number
+    datatype: integer
     show if: 
       variable: child_support_paid_or_pending
       is: True
@@ -361,7 +382,7 @@ fields:
     datatype: yesnoradio
   - "Would you like to file and prosecute ${ italic('in forma pauperis') }, where you will be granted all general and equitable relief?": forma_pauperis
     datatype: yesnoradio
-    help: Tell what forma pauperis is
+    help: ${ italic('Forma pauperis') } is the ability to proceed in court without payment or usual fees associated with the lawsuit.
     show if: 
       variable: ability_to_pay_fees
       is: False
@@ -395,6 +416,9 @@ fields:
       is: True
   - "Was a divorce filed for you and the defendant?": divorce_filed
     datatype: yesnoradio
+    show if:
+      variable: physically_separated
+      is: False
   - "When was the divorce filed?": date_when_divorce_filed
     datatype: date
     show if:
@@ -402,6 +426,9 @@ fields:
       is: True
   - "Were you and the defendant divorced by a signed judgment?": divorce_signed
     datatype: yesnoradio
+    show if:
+      variable: divorce_filed
+      is: False
   - "When was the judgment signed?": date_of_divorce_signed
     datatype: date
     show if:
