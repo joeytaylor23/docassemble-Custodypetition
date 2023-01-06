@@ -135,8 +135,6 @@ code: |
   children[i].name.first
   children[i].birthdate
   children[i].resides_with
-  children[i].six_months_residence
-  children[i].why_six_months
   children[i].complete = True
 ---
 sets:
