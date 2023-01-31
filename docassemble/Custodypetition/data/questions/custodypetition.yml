@@ -63,6 +63,7 @@ objects:
   - users_work: ALPeopleList.using(ask_number=True,target_number=1)
   - users_mailing: ALPeopleList.using(ask_number=True,target_number=1)
   #- defendant_work: ALPeopleList.using(ask_number=True,target_number=1)
+  - defendant_serving: ALAddress
   - defendant_mailing: ALPeopleList.using(ask_number=True,target_number=1)
   - other_parties: ALPeopleList.using(ask_number=True,target_number=1)
   - other_caretaker: ALPeopleList.using(ask_number=True,target_number=1)
@@ -84,12 +85,22 @@ code: |
   allowed_courts = interview_metadata["custodypetition"]["allowed courts"]
   nav.set_section("review_custodypetition")
   user_role = "plaintiff"
+  has_other_custody_orders
+  if (has_other_custody_orders is True):
+    stop_screen
+  elif (dcfs_involved is True):
+    stop_screen
+  petitioner_will_waive_service
+  if (petitioner_will_waive_service is False):
+    service_location
+  if (service_location == 'somewhere_else'):
+    defendant_serving.address
+    service_instructions
   users.gather()
   users[0].address.address
   petitioner_email
   other_parties.gather()
   other_parties[0].address.address
-  venue_options
   number_of_children
   if number_of_children > 0:
     number_of_children = children.target_number
@@ -102,10 +113,11 @@ code: |
   set_progress(25)
   trial_court
   trial_court_index
-  users_work[0].address.address
-  #defendant_work[0].address.address
-  users_mailing[0].address.address
-  defendant_mailing[0].address.address
+  if (petitioner_mailing is False):
+    users_mailing[0].address.address
+  if (defendant_mailing_address is False):
+    defendant_mailing[0].address.address
+  ability_to_pay_fees
   set_progress(50)
   custodypetition_preview_question
   petitioners[0].signature
@@ -145,9 +157,9 @@ sets:
 id: names of opposing parties
 question: |
   % if user_started_case:
-  Name of the **defendant** 
+  What is the name of the **defendant**?
   % else:
-  Name of ${ ordinal(i) } **plaintiff** or petitioner in this matter
+  What is the name of the ${ ordinal(i) } **plaintiff** or petitioner in this matter
   % endif
 fields:
   - code: |
@@ -171,6 +183,8 @@ question: |
 fields:
   - code: |
       other_parties[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+  - "Is this ${ other_parties[0].name.first }'s mailing address?": defendant_mailing_address
+    datatype: yesnoradio
 ---
 sets:
   - users[0].address.address
@@ -187,6 +201,8 @@ question: |
 fields:
   - code: |
       users[0].address_fields(show_county=True, country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+  - "Would you like to use this as your mailing address?": petitioner_mailing
+    datatype: yesnoradio
 ---
 sets:
   - users_work[0].address.address
@@ -276,6 +292,15 @@ fields:
     hint: |
       (###)###-####
 ---
+id: Qualifies to Continue
+question: |
+  Before we start...
+fields:
+  - "Are you aware of any other custody orders for these children(in Louisiana or any other state)?": has_other_custody_orders
+    datatype: yesnoradio
+  - "Has DCFS taken custody of the minor child(ren) in this case?": dcfs_involved
+    datatype: yesnoradio
+---
 id: Child Support
 question: |
   Petitioner Requests (Child Support)
@@ -288,72 +313,8 @@ fields:
       variable: child_support_paid_or_pending
       is: True
   - "From the parish of...": parish_of_child_support_case
-    input type: dropdown
-    choices:
-      - 'Acadia'
-      - 'Allen'
-      - 'Ascension'
-      - 'Assumption'
-      - 'Avoyelles'
-      - 'Beauregard'
-      - 'Bienville'
-      - 'Bossier'
-      - 'Caddo'
-      - 'Calcasieu'
-      - 'Caldwell'
-      - 'Cameron'
-      - 'Catahoula'
-      - 'Claiborne'
-      - 'Concordia'
-      - 'De Soto'
-      - 'East Baton Rouge'
-      - 'East Carroll'
-      - 'East Feliciana'
-      - 'Evangeline'
-      - 'Franklin'
-      - 'Grant'
-      - 'Iberia'
-      - 'Iberville'
-      - 'Jackson'
-      - 'Jefferson'
-      - 'Jefferson Davis'
-      - 'La Salle'
-      - 'Lafayette'
-      - 'Lafourche'
-      - 'Lincoln'
-      - 'Livingston'
-      - 'Madison'
-      - 'Morehouse'
-      - 'Natchitoches'
-      - 'Orleans'
-      - 'Ouachita'
-      - 'Plaquemines'
-      - 'Pointe Coupee'
-      - 'Rapides'
-      - 'Red River'
-      - 'Richland'
-      - 'Sabine'
-      - 'St. Bernard'
-      - 'St. Charles'
-      - 'St. Helena'
-      - 'St. James'
-      - 'St. John The Baptist'
-      - 'St. Landry'
-      - 'St. Martin'
-      - 'St. Mary'
-      - 'St. Tammany'
-      - 'Tangipahoa'
-      - 'Tensas'
-      - 'Terrebonne'
-      - 'Union'
-      - 'Vermilion'
-      - 'Vernon'
-      - 'Washington'
-      - 'Webster'
-      - 'West Baton Rouge'
-      - 'West Carroll'
-      - 'West Feliciana'
-      - 'Winn'
+    code: |
+      court_list.filter_courts(None)
     show if: 
       variable: child_support_paid_or_pending
       is: True
@@ -366,16 +327,12 @@ fields:
     datatype: yesnoradio
     show if:
       variable: requests_child_support
-      is: True
+      is: False
 ---
-id: Venue Options
+id: Further Prays
 question: |
+  Court Costs
 fields:
-  - "Why would ${ petitioners[0].address.county } court be an appropriate venue?": venue_options
-    datatype: checkboxes
-    choices:
-      - This court is in the parish where a party is domiciled.
-      - This court is in the parish of the last matrimonial domicile
   - "Will you be able to pay the costs of this suit?": ability_to_pay_fees
     datatype: yesnoradio
   - "Would you like to file and prosecute ${ italic('in forma pauperis') }, where you will be granted all general and equitable relief?": forma_pauperis
@@ -384,12 +341,7 @@ fields:
     show if: 
       variable: ability_to_pay_fees
       is: False
----
-id: Further Prays
-question: |
- What additional requests would you like to give?
-fields:
-  - no label: petitioner_further_prays
+  - "How would like the court to assign court costs?": petitioner_further_prays
     input type: radio
     choices:
       - Petitioner be cast with the costs of these proceedings: petitioner_cast_with_costs
@@ -403,35 +355,80 @@ question: |
 fields:
   - "How many children are between the defendant and yourself?": number_of_children
     datatype: integer
-  - "Were you and the defendant in an intimate relationship?": intimate_relationship
-    datatype: yesnoradio
-  - "Were you and the defendant married and physically separated?": physically_separated
-    datatype: yesnoradio
+  - "Which of these describes your relationship with the defendant?": petitioner_defendant_relationship
+    input type: radio
+    choices:
+      - We were in an intimate relationship: intimate_relationship
+      - We were married but physically separated: physically_separated
+      - We filed for a divorce: divorce_filed
+      - We were divorced by signed judgment: divorce_signed
   - "What is the date of being officially physically separated?": date_of_physical_separation
     datatype: date
     show if: 
-      variable: physically_separated
-      is: True
-  - "Was a divorce filed for you and the defendant?": divorce_filed
-    datatype: yesnoradio
+      variable: petitioner_defendant_relationship
+      is: physically_separated
+  - "Which parish was this divorce filed?": divorce_parish
+    code: |
+      court_list.filter_courts(None)
     show if:
-      variable: physically_separated
-      is: False
-  - "When was the divorce filed?": date_when_divorce_filed
-    datatype: date
-    show if:
-      variable: divorce_filed
-      is: True
-  - "Were you and the defendant divorced by a signed judgment?": divorce_signed
-    datatype: yesnoradio
-    show if:
-      variable: divorce_filed
-      is: False
+      variable: petitioner_defendant_relationship
+      is: divorce_filed
+  - "What was the docket number?": divorce_docket
+    datatype: integer
+    show if: 
+      variable: petitioner_defendant_relationship
+      is: divorce_filed
   - "When was the judgment signed?": date_of_divorce_signed
     datatype: date
     show if:
-      variable: divorce_signed
-      is: True
+      variable: petitioner_defendant_relationship
+      is: divorce_signed
+---
+id: Serving your custody papers
+question: |
+  Will ${ defendants[0].name.first } waive service of process and accept the custody papers from you directly?
+subquestion: |
+  The law requires that ${ defendants[0].name.first } be notified of your custody lawsuit through a process called "service".
+ 
+  If you and ${ defendants[0].name.first } agree on the custody arrangements and are on speaking terms, they can accept the papers directly from you and sign an affidavit ${ italic('(a written statement or oath that clarifies the truth)') } in front of a notary saying they received them from you. This can save time and money.
+ 
+  If ${ defendants[0].name.first } won't accept the papers, that's ok. You can serve them through the regular service process.
+fields:
+  - "Will ${ defendants[0].name.first } waive and accept service?": petitioner_will_waive_service
+    datatype: yesnoradio
+---
+question: |
+  Where will you have ${ defendants[0].name.first } served?
+fields:
+  - no label: service_location
+    input type: radio
+    choices:
+      - Home: home
+      - Somewhere else: somewhere_else
+---
+id: service address
+generic object: ALAddress
+sets:
+  - defendant_serving.address
+  - defendant_serving.city
+  - defendant_serving.zip
+  - defendant_serving.unit
+  - defendant_serving.state
+  - defendant_serving.country
+  - defendant_serving.county
+question: |
+  At what address should the sheriff attempt service on ${ defendants[0].name.first }?
+subquestion: |
+  Since this is not their home address, ${ defendants[0].name.first } will need to be served personally. Make sure this is somewhere they can be found to avoid extra costs for service attempts.
+fields:
+  - code: |
+      defendant_serving.address_fields(country_code=AL_DEFAULT_COUNTRY, default_state=AL_DEFAULT_STATE)
+---
+id: service times
+question: |
+  What are the best days and times to attempt service on ${ defendants[0].name.first }?
+fields:
+  no label: service_instructions
 ---
 id: who the children reside 
 question: |
@@ -497,12 +494,17 @@ fields:
 ---
 id: Filing Option
 question: |
-  In what parish would you like to file your petition?
+  Filing Your Case
 fields:
-  - no label: trial_court_index
+  - "In what parish would you like to file your petition?": trial_court_index
     code: |
       court_list.filter_courts(None)
----
+  - "Why is this the right place to file?": venue_options
+    datatype: checkboxes
+    choices:
+      - This court is in the parish where a party is domiciled.
+      - This court is in the parish of the last matrimonial domicile.
+---    
 code: |
   trial_court = court_list.as_court('trial_court', trial_court_index[0])
 ---
