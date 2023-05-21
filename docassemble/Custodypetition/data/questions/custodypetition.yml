@@ -87,9 +87,11 @@ code: |
   user_role = "plaintiff"
   has_other_custody_orders
   if (has_other_custody_orders is True):
-    stop_screen
+    stop_screen_custody_orders
   elif (dcfs_involved is True):
-    stop_screen
+    stop_screen_dcfs
+  elif (has_other_custody_orders is True and dcfs_involved is True):
+    stop_screen_custody_orders_and_dcfs
   petitioner_will_waive_service
   if (petitioner_will_waive_service is False):
     service_location
@@ -118,9 +120,9 @@ code: |
   if (defendant_mailing_address is False):
     defendant_mailing[0].address.address
   ability_to_pay_fees
-  set_progress(50)
-  custodypetition_preview_question
   petitioners[0].signature
+  set_progress(50)
+  review_custodypetition
   interview_order_custodypetition = True
 ---
 ###################### Main order ######################
@@ -144,10 +146,27 @@ code: |
   custodypetition_download
 ---
 code: |
-  children[i].name.first
   children[i].birthdate
   children[i].resides_with
   children[i].complete = True
+---
+id: children names without birthdate
+sets:
+  - children[i].name.first
+  - children[i].name.last
+  - children[i].name.middle
+  - children[i].name.suffix
+question: |
+  % if hasattr(children, 'ask_number') and children.ask_number and children.target_number == 1:
+  Child's information
+  % else:
+  Information of the **${ ordinal(i) }** child
+  % endif
+fields:
+  - code: |
+      children[i].name_fields()
+  - Birthdate: children[i].birthdate
+    datatype: BirthDate
 ---
 sets:
   - other_parties[i].name.first
@@ -308,7 +327,7 @@ fields:
   - "Is child support currently being paid or pending against the defendant?": child_support_paid_or_pending
     datatype: yesnoradio
   - "What is the docket number?": child_support_docket_number
-    datatype: integer
+    datatype: text
     show if: 
       variable: child_support_paid_or_pending
       is: True
@@ -374,7 +393,7 @@ fields:
       variable: petitioner_defendant_relationship
       is: divorce_filed
   - "What was the docket number?": divorce_docket
-    datatype: integer
+    datatype: text
     show if: 
       variable: petitioner_defendant_relationship
       is: divorce_filed
@@ -415,7 +434,6 @@ sets:
   - defendant_serving.unit
   - defendant_serving.state
   - defendant_serving.country
-  - defendant_serving.county
 question: |
   At what address should the sheriff attempt service on ${ defendants[0].name.first }?
 subquestion: |
@@ -512,11 +530,33 @@ progress: 100
 question: |
   Sorry, you cannot proceed with this interview.
 subquestion: |
-  To proceed in getting your petition filed, seek legal assistance.
+  Since there are custody orders for the child(ren) you are trying to petition for, you will instead have to petition for a modification of custody. This petition is for starting a new case for custody, where as you will be responding to a previous judgment. There are two types of judgments: 1) **Consensual**- an agreement between parties where they both settle/compromise on an arrangement and 2) **Considered**- a judge's decision that depends on presented evidence during the trial.
+  
+  **Steps To Modify Child Custody:**
+    
+    1. Seek qualification status
+    2. Determine which court to file in (in the parish of the child's residency          or where the prior judgment was rendered)
+    3. If possible, attempt negotiation with the other parent
+    4. File petition
+    5. Serve the other party
+    6. Attend court hearing
 buttons:
   - Exit: exit
   - Restart: restart
-event: stop_screen
+event: stop_screen_custody_orders
+---
+progress: 100
+question: |
+  Sorry, you cannot proceed with this interview.
+subquestion: |
+  You are unable to use this form if DCFS has taken custody of the child you are seeking custody for. In those cases, the court must decide if the child stays in foster care, goes home with the parent, or is placed in the custody of a relative through the "Child In Need Of Care" process.
+  
+  [Learn more about the "Child In Need Of Care" process](https://louisianalawhelp.org/resource/what-you-need-to-know-about-child-in-need-of-care-cases-in-louisiana-guide)
+
+buttons:
+  - Exit: exit
+  - Restart: restart
+event: stop_screen_dcfs
 ---
 id: preview custodypetition
 question: |
@@ -554,14 +594,46 @@ event: review_custodypetition
 question: |
   Review your answers
 review:
-  - Edit: petitioner_and_defendant_relationship
+  - Edit: users[0].name.first
     button: |
-      **Petitioner and defendant relationship**:
-      ${ petitioner_and_defendant_relationship }
-  - Edit: number_of_children
+      **Your name:**
+      ${ users[0].name.full() }
+  - Edit: users[0].address.address
     button: |
-      **Number of children**:
-      ${ number_of_children }
+      **Your address:**
+      ${ users[0].address.address }, ${ users[0].address.city }, ${ users[0].address.state }, ${ users[0].address.zip }
+  - Edit: petitioner_email
+    button: |
+      **Your email:**
+      ${ petitioner_email }
+  - Edit: other_parties[0].name.first
+    button: |
+      **Defendant's name:**
+      ${ other_parties[0].name.full() }
+  - Edit: other_parties[0].address.address
+    button: |
+      **Defendant's address:**
+      ${ other_parties[0].address.address }
+  - Edit: defendant_serving.address.address
+    button: |
+      **Where to serve the defendant?**
+      % if service_location == "home":
+        ${ other_parties[0].address.address }, ${ other_parties[0].address.city }, ${ other_parties[0].address.state }, ${ other_parties[0].address.zip }
+      % elif service_location == "somewhere_else":
+        ${ defendant_serving.address.address }, ${ defendant_serving.address.city }, ${ defendant_serving.address.state }, ${ defendant_serving.address.zip }
+      % endif
+  - Edit: service_instructions
+    button: |
+      **Best time to serve:**
+      ${ service_instructions }
+  - Edit: children.revisit
+    button: |
+      **Children:**
+
+      % for item in children:
+        ${ item } who resides with ${ item.resides_with }
+        
+      % endfor
   - Edit: primary_caregiver.revisit
     button: |
       **Primary caregiver**
@@ -569,54 +641,34 @@ review:
       % for item in primary_caregiver:
         * ${ item }
       % endfor
-  - Edit: judicial_district
+  - Edit: reason_for_primary_caregiver
     button: |
-      **Judicial district**:
-      ${ judicial_district }
-  - Edit: name
+      **Reason for ${ primary_caregiver } deserve custody:**
+      ${ reason_for_primary_caregiver }
+  - Edit: sole_or_joint
     button: |
-      **Filing parish**:
-      ${ name }
-  - Edit: date_of_divorce_signed
+      **Sole custody or Joint custody?**:
+      ${ sole_or_joint }  
+  - Edit: trial_court_index
     button: |
-      **Date of divorce signed**:
-      ${ date_of_divorce_signed }
-  - Edit: children.revisit
+      **Parish to file**:
+      ${ trial_court.name } Parish
+  - Edit: petitioner_mailing
     button: |
-      **Children**
-
-      % for item in children:
-        * ${ item }
-      % endfor
-  - Edit: who_the_child_resides_with.revisit
+      **Your mailing address:**
+      % if petitioner_mailing == True:
+        ${ users[0].address.address }, ${ users[0].address.city }, ${ users[0].address.state }, ${ users[0].address.zip }
+      % elif petitioner_mailing == False:
+        ${ users_mailing[0].address.address }, ${ users_mailing[0].address.city }, ${ users_mailing[0].address.state }, ${ users_mailing[0].address.zip }
+      % endif
+  - Edit: defendant_mailing
     button: |
-      **Who the child resides with**
-
-      % for item in who_the_child_resides_with:
-        * ${ item }
-      % endfor
-  - Edit: divorce_filed
-    button: |
-      **Divorce filed**:
-      ${ divorce_filed }
-  - Edit: date_of_physical_separation
-    button: |
-      **Date of physical separation**:
-      ${ date_of_physical_separation }
-  - Edit: defendants.revisit
-    button: |
-      **Defendants**
-
-      % for item in defendants:
-        * ${ item }
-      % endfor
-  - Edit: petitioners.revisit
-    button: |
-      **Petitioners**
-
-      % for item in petitioners:
-        * ${ item }
-      % endfor
+      **Defendant's mailing address:**
+      % if defendant_mailing_address == True:
+        ${ other_parties[0].address.address }, ${ other_parties[0].address.city }, ${ other_parties[0].address.state }, ${ other_parties[0].address.zip }
+      % elif defendant_mailing_address == False:
+        ${ defendant_mailing[0].address.address }, ${ defendant_mailing[0].address.city }, ${ defendant_mailing[0].address.state }, ${ defendant_mailing[0].address.zip }
+       % endif
 ---
 continue button field: primary_caregiver.revisit
 question: |
